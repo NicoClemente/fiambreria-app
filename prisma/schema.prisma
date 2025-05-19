@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://FiambreriaCele_owner:npg_9fmlUAEI3hyw@ep-gentle-sun-a4i9pxi4-pooler.us-east-1.aws.neon.tech/FiambreriaCele?sslmode=require"
+}
+
+model Usuario {
+  id               String            @id @default(cuid())
+  nombre           String
+  email            String            @unique
+  password         String
+  rol              Rol               @default(EMPLEADO)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  registrosCajas   RegistroCaja[]
+  movimientosStock MovimientoStock[]
+}
+
+enum Rol {
+  ADMIN
+  ENCARGADO
+  EMPLEADO
+}
+
+model Producto {
+  id               String            @id @default(cuid())
+  codigo           String            @unique
+  nombre           String
+  descripcion      String?
+  precio           Float
+  stock            Int               @default(0)
+  unidadMedida     String            @default("unidad")
+  categoria        String?
+  proveedor        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  movimientosStock MovimientoStock[]
+}
+
+model MovimientoStock {
+  id          String         @id @default(cuid())
+  productoId  String
+  producto    Producto       @relation(fields: [productoId], references: [id])
+  cantidad    Int
+  tipo        TipoMovimiento
+  usuarioId   String
+  usuario     Usuario        @relation(fields: [usuarioId], references: [id])
+  observacion String?
+  createdAt   DateTime       @default(now())
+}
+
+enum TipoMovimiento {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+model RegistroCaja {
+  id                  String   @id @default(cuid())
+  fecha               DateTime @default(now())
+  usuarioId           String
+  usuario             Usuario  @relation(fields: [usuarioId], references: [id])
+  montoInicial        Float
+  montoFinal          Float
+  ventasEfectivo      Float
+  ventasTarjeta       Float
+  ventasTransferencia Float
+  gastos              Float
+  observaciones       String?
+  cerrada             Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
