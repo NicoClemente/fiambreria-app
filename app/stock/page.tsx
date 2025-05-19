@@ -1,10 +1,7 @@
-// app/stock/page.tsx
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { PrismaClient } from '@prisma/client'
-import StockList from '@/components/stock/StockList'
-import AddProductForm from '@/components/stock/AddProductForm'
-import StockMovementForm from '@/components/stock/StockMovementForm'
+import StockDashboard from '@/components/stock/StockDashboard'
 
 const prisma = new PrismaClient()
 
@@ -15,43 +12,76 @@ export default async function StockPage() {
     redirect('/login')
   }
   
-  // Obtener todos los productos
+  // Obtener todos los productos con información adicional
   const productos = await prisma.producto.findMany({
     orderBy: {
       nombre: 'asc',
     },
   })
   
+  // Obtener movimientos recientes (últimos 50)
+  const movimientosRecientesRaw = await prisma.movimientoStock.findMany({
+    take: 50,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      producto: {
+        select: {
+          codigo: true,
+          nombre: true,
+        },
+      },
+      usuario: {
+        select: {
+          nombre: true,
+        },
+      },
+    },
+  })
+  
+  // Convertir las fechas a string para que coincidan con el tipo esperado
+  const movimientosRecientes = movimientosRecientesRaw.map(movimiento => ({
+    ...movimiento,
+    createdAt: movimiento.createdAt.toISOString()
+  }))
+  
+  // Calcular estadísticas
+  const totalProductos = productos.length
+  const productosStockBajo = productos.filter(p => p.stock <= 5).length
+  const valorTotalInventario = productos.reduce((total, producto) => {
+    return total + (producto.precio * producto.stock)
+  }, 0)
+  
+  const stats = {
+    totalProductos,
+    productosStockBajo,
+    valorTotalInventario,
+    movimientosHoy: movimientosRecientes.filter(m => {
+      const today = new Date()
+      const movDate = new Date(m.createdAt)
+      return movDate.toDateString() === today.toDateString()
+    }).length
+  }
+  
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Stock</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Panel de productos */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">Inventario Actual</h2>
-              <StockList productos={productos} />
-            </div>
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Gestión de Stock</h1>
+            <p className="text-lg text-gray-600">
+              Control integral de inventario y movimientos de stock
+            </p>
           </div>
           
-          {/* Panel de acciones */}
-          <div className="space-y-6">
-            {/* Formulario para registrar movimientos de stock */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">Registrar Movimiento</h2>
-              <StockMovementForm productos={productos} userId={session.user.id} />
-            </div>
-            
-            {/* Formulario para agregar nuevo producto (solo admin y encargados) */}
-            {(session.user.role === 'ADMIN' || session.user.role === 'ENCARGADO') && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold text-gray-700 mb-4">Agregar Nuevo Producto</h2>
-                <AddProductForm />
-              </div>
-            )}
-          </div>
+          <StockDashboard 
+            productos={productos}
+            movimientosRecientes={movimientosRecientes}
+            stats={stats}
+            userRole={session.user.role as string}
+            userId={session.user.id}
+          />
         </div>
       </div>
     </main>
